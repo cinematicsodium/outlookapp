@@ -48,7 +48,6 @@ class Folder(BaseModel):
         Outlook folder COM object to wrap.
     """
 
-    item_name = "Folder"
     item_type = ItemType.FOLDER
     required_properties = ("Name", "Items", "Folders")
 

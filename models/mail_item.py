@@ -49,7 +49,6 @@ class MailItem(BaseModel):
             "unread",
         }
     )
-    item_name = "MailItem"
     item_type = ItemType.MAIL_ITEM
     required_properties = (
         "SenderEmailAddress",

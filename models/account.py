@@ -18,7 +18,6 @@ class Account(BaseModel):
         Outlook account COM object to wrap.
     """
 
-    item_name = "Account"
     item_type = ItemType.ACCOUNT
     required_properties = ("DisplayName", "SmtpAddress", "DeliveryStore")
 

@@ -15,7 +15,6 @@ class AddressEntry(BaseModel):
         Outlook address entry COM object to wrap.
     """
 
-    item_name = "AddressEntry"
     item_type = ItemType.ADDRESS_ENTRY
     required_properties = (
         "Address",

@@ -21,7 +21,6 @@ class BaseModel(ABC):
         If the object is inaccessible or is not the expected Outlook type.
     """
 
-    item_name: str
     item_type: ClassVar[ItemType]
     required_properties: ClassVar[tuple[str, ...]] = ()
 
@@ -43,7 +42,8 @@ class BaseModel(ABC):
             If the item is inaccessible or has an unexpected type.
         """
         if not self.is_accessible(outlook_item):
-            err_msg = f"Provided Outlook item is not accessible: {self.item_name}"
+            name = self.__class__.__name__
+            err_msg = f"Provided Outlook item is not accessible: {name}"
             raise ValueError(err_msg)
         self._protocol = outlook_item
 
