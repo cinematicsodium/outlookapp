@@ -5,6 +5,7 @@ from enum import IntEnum
 from typing import cast, overload
 
 from .constants import _UNSET, SMTP_ADDRESS_SCHEMA
+from .exceptions import COM_ERRORS
 from .protocols import OlAddressEntry, OlCollection, OlObject
 from .types import LowerStr, ModelT, RawT, T
 
@@ -31,15 +32,15 @@ def is_accessible_ol_item(
     """
     if item is None:
         return False
-    item_type = getattr(item, "Class", _UNSET)
-    if item_type is not _UNSET:
-        return item_type == target_type
-    properties = properties or ()
     try:
+        item_type = getattr(item, "Class", _UNSET)
+        if item_type is not _UNSET:
+            return item_type == target_type
+        properties = properties or ()
         for name in properties:
             getattr(item, name)
         return True
-    except AttributeError:
+    except COM_ERRORS:
         return False
 
 
@@ -164,14 +165,19 @@ def get_smtp_address(user: OlAddressEntry) -> LowerStr:
             return ""
         try:
             exch_user = user.GetExchangeUser()
-        except AttributeError:
+        except COM_ERRORS:
             exch_user = None
         if exch_user:
-            return str(exch_user.PrimarySmtpAddress).lower()
+            try:
+                primary_address = exch_user.PrimarySmtpAddress
+            except COM_ERRORS:
+                primary_address = ""
+            if primary_address:
+                return str(primary_address).lower()
         try:
             address = user.PropertyAccessor.GetProperty(SMTP_ADDRESS_SCHEMA)
             return str(address).lower()
-        except AttributeError:
+        except COM_ERRORS:
             return str(user.Address).lower()
-    except AttributeError:
+    except COM_ERRORS:
         return ""

@@ -20,7 +20,7 @@ def echo_table(rows: list[tuple[object, ...]], headers: list[str]) -> None:
     if not rows:
         console.print("No results.")
         return
-    console.print(tabulate(rows, headers=headers, tablefmt="github"))
+    console.print(tabulate(rows, headers=headers, tablefmt="github"), markup=False)
 
 
 def format_datetime(value: datetime | None) -> str:

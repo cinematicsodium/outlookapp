@@ -71,12 +71,12 @@ def validate_email(emails: str | Iterable[str] | None) -> str:
 
 
 def validate_paths(paths: str | Path | Iterable[str | Path]) -> list[Path]:
-    """Resolve existing filesystem paths.
+    """Resolve existing file paths for attachments.
 
     Parameters
     ----------
     paths : str, Path, or iterable of str or Path
-        One or more paths to validate.
+        One or more file paths to validate.
 
     Returns
     -------
@@ -86,7 +86,7 @@ def validate_paths(paths: str | Path | Iterable[str | Path]) -> list[Path]:
     Raises
     ------
     OutlookError
-        If any value is not path-like or does not exist.
+        If any value is not path-like or does not identify an existing file.
     """
     values = [paths] if isinstance(paths, (str, Path)) else list(paths)
     valid: list[Path] = []
@@ -96,10 +96,10 @@ def validate_paths(paths: str | Path | Iterable[str | Path]) -> list[Path]:
             errors.append(f"Invalid path: {value} (type: {type(value)})")
             continue
         path = Path(value).expanduser().resolve()
-        if path.exists():
+        if path.is_file():
             valid.append(path)
         else:
-            errors.append(f"Path does not exist: {path}")
+            errors.append(f"Path is not an existing file: {path}")
     if errors:
         raise OutlookError("Path validation errors:\n" + "\n".join(errors))
     return valid

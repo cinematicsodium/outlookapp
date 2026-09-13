@@ -42,7 +42,7 @@ def main(
         None,
         "--account",
         "-m",
-        help="Default account display name or SMTP address for account-aware commands.",
+        help="Configured account name/address, or shared mailbox SMTP address for drafts.",
     ),
     verbose: bool = typer.Option(
         False,

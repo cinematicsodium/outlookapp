@@ -1,7 +1,9 @@
 from typing import Any
 
-from ..exceptions import OutlookError
+from ..enums import FolderEnum
+from ..exceptions import COM_ERRORS, OutlookError
 from ..models.account import Account
+from ..validation import validate_email
 
 
 def _load_dispatch() -> Any:
@@ -42,7 +44,7 @@ def _connect() -> Any:
         return _load_dispatch().Dispatch("Outlook.Application")
     except OutlookError:
         raise
-    except AttributeError as exc:
+    except COM_ERRORS as exc:
         raise OutlookError("Unable to connect to Outlook.") from exc
 
 
@@ -61,8 +63,54 @@ def _open_mapi(app: Any) -> Any:
     """
     try:
         return app.GetNamespace("MAPI")
-    except AttributeError as exc:
+    except COM_ERRORS as exc:
         raise OutlookError("Unable to open the Outlook MAPI namespace.") from exc
+
+
+def _verify_mailbox(mapi: Any, address: str, account: Account | None) -> str:
+    """Resolve a sending address and verify access to its Inbox.
+
+    Parameters
+    ----------
+    mapi : Any
+        Active Outlook namespace.
+    address : str
+        Shared mailbox SMTP address or configured account name/address.
+    account : Account or None
+        Matching configured account, if present.
+
+    Returns
+    -------
+    str
+        Normalized sending address.
+
+    Raises
+    ------
+    OutlookError
+        If the address is invalid, unresolved, or its Inbox is inaccessible.
+
+    Notes
+    -----
+    Inbox access does not verify Exchange Send As permission.
+    """
+    address = validate_email(account.email_address if account else address)
+    if not address or ";" in address:
+        raise OutlookError("Provide exactly one sending mailbox address.")
+    try:
+        if account is not None:
+            inbox = account.store.GetDefaultFolder(FolderEnum.INBOX)
+        else:
+            recipient = mapi.CreateRecipient(address)
+            if not recipient.Resolve():
+                raise OutlookError(
+                    f"Outlook mailbox could not be resolved: {address!r}."
+                )
+            inbox = mapi.GetSharedDefaultFolder(recipient, FolderEnum.INBOX)
+        # Force a read; resolving a directory entry alone does not prove access.
+        _ = inbox.Items.Count
+    except COM_ERRORS as exc:
+        raise OutlookError(f"Outlook mailbox is not accessible: {address!r}.") from exc
+    return address
 
 
 def _select_account(

@@ -13,13 +13,13 @@ This package is intended for environments where the Outlook desktop app is avail
 - `MailItem`: read and set message fields (including HTML body and unread flag), update multiple fields at once, attach files, save, show, send, move, export, or delete messages.
 - `AddressEntry`: a model representing an Outlook address book entry, exposing `name`, `email_address`, and `user_type`.
 - `Account.default_folder()`: resolve default folders such as Inbox, Drafts, Sent Mail, and Junk for a specific account.
-- Exception classes: `OutlookError`, `OutlookConnectionError`, `OutlookValidationError`, `EmailValidationError`, and `PathValidationError` for structured error handling.
+- `OutlookError`: connection, mailbox-access, email-validation, and attachment-validation errors. Invalid model arguments can also raise `ValueError`.
 
 ## Requirements
 
 - Microsoft Outlook installed and configured
 - Python with `pywin32`
-- `tabulate` and `typer` if you want to use the message table rendering or CLI
+- `tabulate` for message table rendering; `typer` and `rich` for the CLI
 
 ## Python examples
 
@@ -32,14 +32,33 @@ app = Outlook()
 print(app.accounts)
 ```
 
-If you want to target a specific sending account, pass the mailbox SMTP address:
+To send from a group/shared mailbox, pass its SMTP address:
 
 ```python
 from outlook import Outlook
 
-app = Outlook(address="me@company.com")
-print(app.account)
+app = Outlook(address="team@company.com")
+print(app.address)
+message = app.new_email()  # From: team@company.com
 ```
+
+An explicit address is verified by opening its Inbox. A shared mailbox is resolved
+through Outlook's address book and does not need to appear in the profile's
+`Accounts` collection. Unresolved or inaccessible mailboxes raise `OutlookError`.
+Configured account names are also accepted; those accounts use `SendUsingAccount`.
+
+Exchange must grant **Send As** permission for recipients to see only the group
+mailbox as sender. Inbox access does not verify that permission; **Send on Behalf**
+can expose the personal sender. This wrapper sets the From identity but cannot
+grant or verify Send As permission through an Inbox-access check. See Microsoft's
+[shared mailbox permission guidance](https://learn.microsoft.com/en-us/microsoft-365/admin/email/create-a-shared-mailbox).
+
+With `address=None`, the sole configured account is selected automatically. With
+multiple configured accounts, inspection is allowed, but `new_email()` requires an
+explicit sending mailbox. `app.account` is the matching configured account, or
+`None` for a shared mailbox that is not a profile account. Account/folder navigation
+uses configured accounts; it does not fall back to the personal mailbox when a
+shared address is selected.
 
 You can manage the connection with a context manager so COM resources are released automatically:
 
@@ -68,7 +87,7 @@ if inbox:
     for message in inbox.list_messages(unread_only=True):
         print(message.subject, message.unread)
 
-    # folders also support direct iteration
+    # iteration fetches messages lazily, so stopping early avoids loading them all
     for message in inbox:
         print(message.subject)
 ```
@@ -156,7 +175,7 @@ message.body = "This was created from Python."
 # Open the compose window
 message.show()
 
-# Or send immediately
+# Or send immediately (ordinary drafts do not need a delegated sender)
 # message.send()
 ```
 
@@ -301,6 +320,13 @@ python -m outlook drafts create \
   --display
 ```
 
+To create a draft from a shared mailbox, use the global `--account` option:
+
+```bash
+python -m outlook --account "team@company.com" drafts create \
+  --to "alice@company.com" --subject "Team update" --body "Hello from the team."
+```
+
 Create a draft with CC, BCC, and an attachment, then send immediately:
 
 ```bash
@@ -317,7 +343,8 @@ python -m outlook drafts create \
 ## Notes
 
 - Email address inputs are validated before being written to Outlook fields.
-- Attachment paths must exist on disk.
+- Attachment paths must identify existing files. All paths are checked before any attachment is added; directories are rejected.
+- Folder iteration is lazy, while `list_messages()` returns a list. Avoid moving or deleting messages during lazy iteration because Outlook's collection indices can change; take a list snapshot first when mutating the folder.
 - When multiple accounts are available, account-specific folder lookups work best when you set `address` or pass `--account` in the CLI.
 - Use `Outlook` as a context manager (`with Outlook(...) as app:`) or call `app.close()` explicitly to release COM resources when you are done.
-- The package exports exception classes (`OutlookConnectionError`, `EmailValidationError`, `PathValidationError`, and others) that you can import and catch for structured error handling.
+- Import `OutlookError` from `outlook` to catch connection and validation failures. Raw COM errors may still propagate from operations without an explicit fallback, including sending or deleting messages.

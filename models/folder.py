@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from functools import cached_property
 
 from ..enums import ItemType
+from ..exceptions import COM_ERRORS
 from ..protocols import OlFolder
 from ..utils import unpack_collection
 from .base import ItemModel
@@ -112,29 +113,53 @@ class Folder(ItemModel):
         """
         if limit is not None and limit < 1:
             raise ValueError("limit must be >= 1")
+        return list(self._iter_messages(limit=limit, unread_only=unread_only))
+
+    def _iter_messages(
+        self, limit: int | None = None, unread_only: bool = False
+    ) -> Iterator[MailItem]:
+        """Yield accessible messages from the folder.
+
+        Parameters
+        ----------
+        limit : int, optional
+            Maximum number of messages to yield.
+        unread_only : bool, default=False
+            Yield only unread messages.
+
+        Yields
+        ------
+        MailItem
+            Accessible messages ordered by received time when Outlook supports
+            sorting.
+        """
         items = self._ol_folder_item.Items
-        sort = getattr(items, "Sort", None)
-        if callable(sort):
-            try:
-                sort("[ReceivedTime]", True)
-            except AttributeError:
-                logger.debug("Unable to sort messages in '%s'", self.name)
         if unread_only:
-            restrict = getattr(items, "Restrict", None)
-            if callable(restrict):
-                try:
-                    items = restrict("[UnRead] = True")
-                    unread_only = False
-                except AttributeError:
-                    logger.debug("Unable to filter unread messages in '%s'", self.name)
-        return unpack_collection(
-            items,  # type: ignore
-            transformer=MailItem,
-            limit=limit,
-            predicate=(lambda item: bool(getattr(item, "UnRead", False)))
-            if unread_only
-            else None,
-        )  # type: ignore
+            try:
+                items = items.Restrict("[UnRead] = True")
+                unread_only = False
+            except COM_ERRORS:
+                logger.debug("Unable to filter unread messages in '%s'", self.name)
+        try:
+            items.Sort("[ReceivedTime]", True)
+        except COM_ERRORS:
+            logger.debug("Unable to sort messages in '%s'", self.name)
+        count = 0
+        # ponytail: live indices; use list(folder) before moving/deleting messages.
+        for index in range(1, items.Count + 1):
+            try:
+                item = items.Item(index)
+                if unread_only and not item.UnRead:
+                    continue
+                message = MailItem.from_outlook_item(item)
+            except COM_ERRORS:
+                logger.debug("Unable to read message %s in '%s'", index, self.name)
+                continue
+            if message is not None:
+                yield message
+                count += 1
+                if limit is not None and count >= limit:
+                    return
 
     def iter_subfolders(self) -> Iterable[Folder]:
         """Iterate over accessible child folders."""
@@ -143,7 +168,7 @@ class Folder(ItemModel):
                 self._ol_folder_item.Folders, transformer=Folder
             )
             yield from subfolders
-        except AttributeError:
+        except COM_ERRORS:
             logger.warning("Unable to enumerate subfolders for '%s'", self.name)
             return
 
@@ -343,7 +368,7 @@ class Folder(ItemModel):
         """Delete this folder."""
         self._ol_folder_item.Delete()
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[MailItem]:
         """Iterate over the folder's messages.
 
         Parameters
@@ -355,7 +380,7 @@ class Folder(ItemModel):
         Iterator of MailItem
             Messages in the folder.
         """
-        yield from self.list_messages()
+        yield from self._iter_messages()
 
     def __repr__(self) -> str:
         """Return repr string for the folder."""

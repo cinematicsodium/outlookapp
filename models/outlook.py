@@ -4,9 +4,9 @@ import logging
 from functools import cached_property
 from types import TracebackType
 
-from ..exceptions import OutlookError
+from ..exceptions import COM_ERRORS, OutlookError
 from ..protocols import OlApplication, OlMailItem, OlNamespace
-from ..services.client import _connect, _open_mapi, _select_account
+from ..services.client import _connect, _open_mapi, _select_account, _verify_mailbox
 from ..utils import unpack_collection
 from .account import Account
 from .mail_item import MailItem
@@ -15,12 +15,15 @@ logger = logging.getLogger(__name__)
 
 
 class Outlook:
-    """Connect to Outlook and expose the selected account.
+    """Connect to Outlook and select a sending mailbox.
 
     Parameters
     ----------
     address : str, optional
-        Display name or SMTP address of the account to select.
+        Shared mailbox SMTP address or configured account name/address. When
+        supplied, its Inbox must be accessible. Shared mailboxes require Exchange
+        Send As permission for recipients to see only the mailbox as sender.
+        With ``None``, select the sole configured account, if unambiguous.
     app : OlApplication, optional
         Existing Outlook application object, primarily for dependency injection.
     mapi : OlNamespace, optional
@@ -30,7 +33,7 @@ class Outlook:
     ------
     OutlookError
         If Outlook cannot be opened, has no configured accounts, or ``address``
-        does not match an account.
+        cannot be resolved or its Inbox cannot be accessed.
     """
 
     def __init__(
@@ -39,12 +42,12 @@ class Outlook:
         app: OlApplication | None = None,
         mapi: OlNamespace | None = None,
     ) -> None:
-        """Connect to Outlook and optionally select an account.
+        """Connect to Outlook and optionally verify a sending mailbox.
 
         Parameters
         ----------
         address : str, optional
-            Account display name or SMTP address.
+            Shared mailbox SMTP address or configured account name/address.
         app : OlApplication, optional
             Existing Outlook application COM object.
         mapi : OlNamespace, optional
@@ -54,10 +57,18 @@ class Outlook:
         -------
         None
         """
-        self._app = app or _connect()
-        self._mapi = mapi or _open_mapi(self._app)
-        self.account = _select_account(self.accounts, address)
-        self.address = self.account.email_address if self.account else None
+        if address is not None and (
+            not isinstance(address, str) or not address.strip()
+        ):
+            raise OutlookError("Provide a nonempty mailbox address or None.")
+        self._app = _connect() if app is None else app
+        self._mapi = _open_mapi(self._app) if mapi is None else mapi
+        self.account = _select_account(self.accounts)
+        if address is None:
+            self.address = self.account.email_address if self.account else None
+        else:
+            self.account = self.find_account(address.strip())
+            self.address = _verify_mailbox(self._mapi, address, self.account)
 
     def __repr__(self) -> str:
         """Return a developer representation of the Outlook connection.
@@ -115,10 +126,13 @@ class Outlook:
     @cached_property
     def accounts(self) -> list[Account]:
         """Return all accounts in the active Outlook profile."""
-        return unpack_collection(
-            self._require_mapi().Accounts,
-            transformer=Account,
-        )
+        try:
+            return unpack_collection(
+                self._require_mapi().Accounts,
+                transformer=Account,
+            )
+        except COM_ERRORS as exc:
+            raise OutlookError("Unable to read Outlook accounts.") from exc
 
     def _require_app(self) -> OlApplication:
         """Return the active Outlook application.
@@ -187,7 +201,7 @@ class Outlook:
         )
 
     def new_email(self) -> MailItem:
-        """Create a new email for the selected account.
+        """Create a new email with the selected mailbox in From.
 
         Returns
         -------
@@ -197,11 +211,18 @@ class Outlook:
         Raises
         ------
         OutlookError
-            If the connection is closed, no account is selected, or Outlook
+            If the connection is closed, no sending mailbox is selected, or Outlook
             does not return an accessible mail item.
         """
-        item: OlMailItem = self._require_app().CreateItem(0)
-        item.SentOnBehalfOfName = self.address or self._require_account().email_address
+        app = self._require_app()
+        address = self.address or self._require_account().email_address
+        try:
+            item: OlMailItem = app.CreateItem(0)
+            if self.account is not None:
+                item.SendUsingAccount = self.account.ol_item
+            item.SentOnBehalfOfName = address
+        except COM_ERRORS as exc:
+            raise OutlookError(f"Unable to create an email from {address!r}.") from exc
         mail = MailItem.from_outlook_item(item)
         if mail is None:
             raise OutlookError("Unable to create an Outlook email.")

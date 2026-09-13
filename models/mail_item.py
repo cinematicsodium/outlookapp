@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypedDict
 
 from ..enums import ItemType
+from ..exceptions import COM_ERRORS
 from ..protocols import OlMailItem
 from ..types import StrPath
 from ..utils import get_smtp_address, unpack_collection
@@ -383,10 +384,8 @@ class MailItem(ItemModel):
         Raises
         ------
         ValueError
-            If the sender or all delivery recipients are missing.
+            If all delivery recipients are missing.
         """
-        if not self.sent_for:
-            raise ValueError(f"Cannot send {self.subject!r}: sender is missing.")
         if not any(self.delivery_recipients):
             raise ValueError(f"Cannot send {self.subject!r}: recipient is missing.")
         if self._item.Recipients.ResolveAll() is False:
@@ -410,13 +409,13 @@ class MailItem(ItemModel):
         bool
             ``True`` when Outlook saves the message successfully.
         """
-        target = Path(path).expanduser().resolve()
-        target.parent.mkdir(parents=True, exist_ok=True)
         try:
+            target = Path(path).expanduser().resolve()
+            target.parent.mkdir(parents=True, exist_ok=True)
             self._item.SaveAs(str(target))
             return True
-        except OSError:
-            log.exception("Failed to export %r to %r", self.subject, target)
+        except (OSError, *COM_ERRORS):
+            log.exception("Failed to export %r to %r", self.subject, path)
             return False
 
     def delete(self) -> None:
