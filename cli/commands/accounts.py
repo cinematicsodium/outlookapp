@@ -23,11 +23,12 @@ def list_accounts(ctx: typer.Context) -> None:
         is_default_account = default_account is not None and account.matches(
             default_account.email_address
         )
+        root = account.root_folder
         rows.append(
             (
                 account.name,
                 account.email_address,
-                len(account.folders),
+                root.subfolder_count if root is not None else 0,
                 "yes" if matches_global_selection or is_default_account else "",
             )
         )

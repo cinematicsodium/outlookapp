@@ -507,7 +507,7 @@ class MailItem(ItemModel):
         folder = self.folder
         from tabulate import tabulate
 
-        attachments = self.attachments
+        attachment_count = self._item.Attachments.Count
         size = self.size
         rows = {
             "Subject": self.subject,
@@ -520,7 +520,7 @@ class MailItem(ItemModel):
             "Sent At": self._format_dt(self.sent_at),
             "Received At": self._format_dt(self.received_at),
             "Body": self._format_body(self.body, body_limit),
-            "Attachments": f"{len(attachments)} file(s)",
+            "Attachments": f"{attachment_count} file(s)",
             "Size": f"{size} bytes ({round(size / (1024**2), 2)} MB)",
             "Folder": folder.name if folder else "",
             "Thread ID": self.thread_id,

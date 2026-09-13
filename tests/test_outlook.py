@@ -92,3 +92,23 @@ def test_close_releases_cached_com_wrappers() -> None:
     assert "accounts" not in client.__dict__
     with pytest.raises(OutlookError):
         _ = client.accounts
+
+
+def test_cli_account_totals_do_not_enumerate_child_folders(monkeypatch) -> None:
+    """Verify account totals include unopened entries without loading them.
+
+    Parameters
+    ----------
+    monkeypatch : pytest.MonkeyPatch
+        Temporary replacement of the CLI connection factory.
+    """
+    from outlook.cli.commands import accounts
+
+    root = FakeFolder("Root", subfolders=[object() for _ in range(1000)])
+    account = outlook.Account(FakeAccount("Only", "only@example.com", root))
+    client = SimpleNamespace(accounts=[account], account=account)
+    monkeypatch.setattr(accounts, "create_client", lambda ctx: client)
+    result = CliRunner().invoke(app, ["accounts", "list"])
+    assert result.exit_code == 0, result.output
+    assert "1000" in result.output
+    assert root.Folders.item_calls == 0

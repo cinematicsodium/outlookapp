@@ -8,7 +8,7 @@ from outlook import MailItem, OutlookError, utils
 from outlook.cli import rendering
 from outlook.models import mail_item
 from outlook.tests.test_mailbox import COMFailure
-from outlook.tests.test_model_navigation import FakeMailItem
+from outlook.tests.test_model_navigation import FakeCollection, FakeMailItem
 
 
 def test_message_without_delegated_sender_can_send() -> None:
@@ -89,3 +89,11 @@ def test_export_returns_false_when_parent_cannot_be_created(tmp_path) -> None:
     parent = tmp_path / "file"
     parent.write_text("not a directory")
     assert MailItem(FakeMailItem("draft")).export(parent / "message.msg") is False
+
+
+def test_message_table_counts_attachments_without_loading_filenames() -> None:
+    """Verify attachment totals require no attachment item lookups."""
+    raw = FakeMailItem("draft")
+    raw.Attachments = FakeCollection([object() for _ in range(100)])
+    assert "100 file(s)" in MailItem(raw).as_table()
+    assert raw.Attachments.item_calls == 0

@@ -191,8 +191,9 @@ if account:
     inbox = account.find_folder("Inbox")
     archive = account.find_folder("Inbox/Archive")
 
-    if inbox and archive and inbox.mail_items:
-        moved = inbox.mail_items[0].move(archive)
+    message = next(iter(inbox), None) if inbox is not None else None
+    if archive is not None and message is not None:
+        moved = message.move(archive)
         print(moved)
 ```
 
@@ -205,8 +206,8 @@ from outlook.enums import FolderEnum
 app = Outlook()
 inbox = app.account.default_folder(FolderEnum.INBOX) if app.account else None
 
-if inbox and inbox.mail_items:
-    message = inbox.mail_items[0]
+message = next(iter(inbox), None) if inbox is not None else None
+if message is not None:
     success = message.export("~/exports/message.msg")
     print("Saved" if success else "Failed")
 ```
@@ -220,8 +221,8 @@ from outlook.enums import FolderEnum
 app = Outlook()
 inbox = app.account.default_folder(FolderEnum.INBOX) if app.account else None
 
-if inbox and inbox.mail_items:
-    message = inbox.mail_items[0]
+message = next(iter(inbox), None) if inbox is not None else None
+if message is not None:
     print(message.as_dict())
     print(message.as_table())
 ```
@@ -235,9 +236,8 @@ from outlook.enums import FolderEnum
 app = Outlook()
 inbox = app.account.default_folder(FolderEnum.INBOX) if app.account else None
 
-if inbox and inbox.mail_items:
-    message = inbox.mail_items[0]
-
+message = next(iter(inbox), None) if inbox is not None else None
+if message is not None:
     # AddressEntry for the sender (name, email_address, user_type)
     sender = message.sender_entry
     if sender:
@@ -251,9 +251,8 @@ if inbox and inbox.mail_items:
 ### Thread and size properties
 
 ```python
-if inbox and inbox.mail_items:
-    message = inbox.mail_items[0]
-
+message = next(iter(inbox), None) if inbox is not None else None
+if message is not None:
     # conversation threading
     print(message.thread_id)
     print(message.thread_index)
@@ -345,6 +344,8 @@ python -m outlook drafts create \
 - Email address inputs are validated before being written to Outlook fields.
 - Attachment paths must identify existing files. All paths are checked before any attachment is added; directories are rejected.
 - Folder iteration is lazy, while `list_messages()` returns a list. Avoid moving or deleting messages during lazy iteration because Outlook's collection indices can change; take a list snapshot first when mutating the folder.
+- Child-folder iteration and path lookup are lazy. Folder totals in tree listings and `accounts list` use Outlook's native count, including entries that cannot be opened; only accessible folders are visited during a walk.
+- Use `next(iter(folder), None)` for the newest accessible message. Reading `folder.mail_items` loads the entire folder each time.
 - When multiple accounts are available, account-specific folder lookups work best when you set `address` or pass `--account` in the CLI.
 - Use `Outlook` as a context manager (`with Outlook(...) as app:`) or call `app.close()` explicitly to release COM resources when you are done.
 - Import `OutlookError` from `outlook` to catch connection and validation failures. Raw COM errors may still propagate from operations without an explicit fallback, including sending or deleting messages.

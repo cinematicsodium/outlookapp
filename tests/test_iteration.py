@@ -2,9 +2,15 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from outlook import Folder, utils
+from outlook import Account, Folder, utils
 from outlook.enums import ItemType
-from outlook.tests.test_model_navigation import FakeCollection, FakeFolder, FakeMailItem
+from outlook.models.folder import FolderListing
+from outlook.tests.test_model_navigation import (
+    FakeAccount,
+    FakeCollection,
+    FakeFolder,
+    FakeMailItem,
+)
 
 
 class OrderedCollection(FakeCollection):
@@ -44,6 +50,61 @@ def test_folder_iteration_reads_only_requested_message() -> None:
 
     assert first.subject == "9999"
     assert items.item_calls == 1
+
+
+def test_subfolder_iteration_reads_only_requested_folder() -> None:
+    """Verify child-folder iteration does not materialize the collection."""
+    folder = Folder(
+        FakeFolder(
+            "Root", subfolders=[FakeFolder(str(index)) for index in range(1_000)]
+        )
+    )
+    first = next(iter(folder.iter_subfolders()))
+
+    assert first.name == "0"
+    assert folder._ol_folder_item.Folders.item_calls == 1
+
+
+def test_folder_walk_uses_native_count_without_opening_children() -> None:
+    """Verify a bounded walk does not open child folders."""
+    raw = FakeFolder(
+        "Root", subfolders=[FakeFolder(str(index)) for index in range(1_000)]
+    )
+    folder = Folder(raw)
+
+    assert folder.walk() == [FolderListing("Root", 0, 1_000)]
+    assert raw.Folders.item_calls == 0
+
+    assert folder.walk(recursive=True, max_depth=0)[0].subfolder_count == 1_000
+    assert raw.Folders.item_calls == 0
+
+
+def test_subfolder_iteration_skips_inaccessible_entries() -> None:
+    """Verify inaccessible child folders do not stop later enumeration."""
+    first = FakeFolder("first")
+    last = FakeFolder("last")
+    folders = FlakyCollection(
+        [first, SimpleNamespace(Class=ItemType.MAIL_ITEM), object(), last]
+    )
+    folder = Folder(FakeFolder("Root"))
+    folder._ol_folder_item.Folders = folders
+
+    assert [child.name for child in folder.iter_subfolders()] == ["first", "last"]
+
+
+def test_account_folder_lookup_stops_after_root_match() -> None:
+    """Verify root-folder lookup stops once it finds the requested child."""
+    raw_root = FakeFolder(
+        "Root",
+        subfolders=[
+            FakeFolder("Inbox"),
+            *[FakeFolder(str(index)) for index in range(999)],
+        ],
+    )
+    account = Account(FakeAccount("Primary", "user@example.com", raw_root))
+
+    assert account.find_folder("Inbox") is not None
+    assert raw_root.Folders.item_calls == 1
 
 
 def test_unread_restriction_is_sorted_after_filtering() -> None:

@@ -8,7 +8,6 @@ from functools import cached_property
 from ..enums import ItemType
 from ..exceptions import COM_ERRORS
 from ..protocols import OlFolder
-from ..utils import unpack_collection
 from .base import ItemModel
 from .mail_item import MailItem
 
@@ -26,7 +25,8 @@ class FolderListing:
     depth : int
         Depth relative to the walk root.
     subfolder_count : int
-        Number of direct child folders.
+        Outlook's reported number of direct children, including entries that
+        cannot be opened.
     """
 
     path: str
@@ -85,6 +85,19 @@ class Folder(ItemModel):
     def subfolders(self) -> list[Folder]:
         """Return a list of subfolders."""
         return list(self.iter_subfolders())
+
+    @property
+    def subfolder_count(self) -> int:
+        """Return Outlook's reported number of direct child folders.
+
+        The count can include folders that cannot be opened through this
+        wrapper. Return zero if the count cannot be read.
+        """
+        try:
+            return self._ol_folder_item.Folders.Count
+        except COM_ERRORS:
+            logger.warning("Unable to count subfolders for '%s'", self.name)
+            return 0
 
     def list_messages(
         self,
@@ -164,13 +177,19 @@ class Folder(ItemModel):
     def iter_subfolders(self) -> Iterable[Folder]:
         """Iterate over accessible child folders."""
         try:
-            subfolders = unpack_collection(
-                self._ol_folder_item.Folders, transformer=Folder
-            )
-            yield from subfolders
+            folders = self._ol_folder_item.Folders
+            count = folders.Count
         except COM_ERRORS:
             logger.warning("Unable to enumerate subfolders for '%s'", self.name)
             return
+        for index in range(1, count + 1):
+            try:
+                folder = Folder.from_outlook_item(folders.Item(index))
+            except COM_ERRORS:
+                logger.debug("Unable to read subfolder %s in '%s'", index, self.name)
+                continue
+            if folder is not None:
+                yield folder
 
     def walk(
         self,
@@ -205,13 +224,12 @@ class Folder(ItemModel):
         if recursive and max_depth < 0:
             raise ValueError("max_depth must be >= 0")
         path = f"{parent_path}/{self.name}" if parent_path else self.name
-        subfolders = self.subfolders
         folder_listing_entries = [
-            FolderListing(path=path, depth=depth, subfolder_count=len(subfolders))
+            FolderListing(path=path, depth=depth, subfolder_count=self.subfolder_count)
         ]
         if not recursive or depth >= max_depth:
             return folder_listing_entries
-        for subfolder in subfolders:
+        for subfolder in self.iter_subfolders():
             folder_listing_entries.extend(
                 subfolder.walk(
                     recursive=recursive,
@@ -268,7 +286,7 @@ class Folder(ItemModel):
         if not isinstance(folder_name, str):
             raise ValueError("folder_name must be a string")  # ruff: ignore[TRY004]
         normalized_folder_name: str = folder_name.lower()
-        for folder in self.subfolders:
+        for folder in self.iter_subfolders():
             if (folder.name or "").lower() == normalized_folder_name:
                 return folder
         return None

@@ -104,11 +104,10 @@ class Account(ItemModel):
             parts = [str(segment).strip() for segment in path if str(segment).strip()]
         if not parts:
             return None
-        target = parts[0].lower()
-        current = next(
-            (folder for folder in self.folders if folder.name.lower() == target),
-            None,
-        )
+        root = self.root_folder
+        if root is None:
+            return None
+        current = root.get_subfolder(parts[0])
         for segment in parts[1:]:
             if current is None:
                 return None
