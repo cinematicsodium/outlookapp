@@ -35,7 +35,7 @@ class Account(ItemModel):
         None
         """
         super().__init__(ol_acct_item)
-        self.ol_item = ol_acct_item
+        self.ol_item: OlAccount = ol_acct_item
         self._default_folders: dict[FolderEnum, Folder] = {}
 
     @cached_property

@@ -4,10 +4,11 @@ import logging
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from functools import cached_property
+from typing import cast
 
 from ..enums import ItemType
 from ..exceptions import COM_ERRORS
-from ..protocols import OlFolder
+from ..protocols import OlFolder, OlMailItem
 from .base import ItemModel
 from .mail_item import MailItem
 
@@ -162,7 +163,7 @@ class Folder(ItemModel):
         for index in range(1, items.Count + 1):
             try:
                 item = items.Item(index)
-                if unread_only and not item.UnRead:
+                if unread_only and not cast(OlMailItem, item).UnRead:
                     continue
                 message = MailItem.from_outlook_item(item)
             except COM_ERRORS:

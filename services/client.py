@@ -3,6 +3,7 @@ from typing import Any
 from ..enums import FolderEnum
 from ..exceptions import COM_ERRORS, OutlookError
 from ..models.account import Account
+from ..protocols import OlApplication, OlNamespace
 from ..validation import validate_email
 
 
@@ -28,7 +29,7 @@ def _load_dispatch() -> Any:
         ) from exc
 
 
-def _connect() -> Any:
+def _connect() -> OlApplication:
     """Connect to the Outlook application.
 
     Parameters
@@ -37,7 +38,7 @@ def _connect() -> Any:
 
     Returns
     -------
-    Any
+    OlApplication
         Outlook application COM object.
     """
     try:
@@ -48,17 +49,17 @@ def _connect() -> Any:
         raise OutlookError("Unable to connect to Outlook.") from exc
 
 
-def _open_mapi(app: Any) -> Any:
+def _open_mapi(app: OlApplication) -> OlNamespace:
     """Open the MAPI namespace for an Outlook application.
 
     Parameters
     ----------
-    app : Any
+    app : OlApplication
         Outlook application COM object.
 
     Returns
     -------
-    Any
+    OlNamespace
         MAPI namespace COM object.
     """
     try:
@@ -67,12 +68,12 @@ def _open_mapi(app: Any) -> Any:
         raise OutlookError("Unable to open the Outlook MAPI namespace.") from exc
 
 
-def _verify_mailbox(mapi: Any, address: str, account: Account | None) -> str:
+def _verify_mailbox(mapi: OlNamespace, address: str, account: Account | None) -> str:
     """Resolve a sending address and verify access to its Inbox.
 
     Parameters
     ----------
-    mapi : Any
+    mapi : OlNamespace
         Active Outlook namespace.
     address : str
         Shared mailbox SMTP address or configured account name/address.

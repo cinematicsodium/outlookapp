@@ -14,6 +14,7 @@ This package is intended for environments where the Outlook desktop app is avail
 - `AddressEntry`: a model representing an Outlook address book entry, exposing `name`, `email_address`, and `user_type`.
 - `Account.default_folder()`: resolve default folders such as Inbox, Drafts, Sent Mail, and Junk for a specific account.
 - `OutlookError`: connection, mailbox-access, email-validation, and attachment-validation errors. Invalid model arguments can also raise `ValueError`.
+- `outlook.protocols`: structural typing contracts for the COM members used by this package (`OlCollection`, `OlAccount`, `OlAddressEntry`, `OlApplication`, `OlFolder`, `OlMailItem`, `OlNamespace`, `OlObject`, and `OlStore`). These describe existing objects for static checking; they do not create or validate COM objects at runtime.
 
 ## Requirements
 

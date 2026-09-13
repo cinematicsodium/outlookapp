@@ -11,13 +11,13 @@ from .types import LowerStr, ModelT, RawT, T
 
 
 def is_accessible_ol_item(
-    item: OlObject, target_type: IntEnum, properties: Iterable[str] | None = None
+    item: OlObject | None, target_type: IntEnum, properties: Iterable[str] | None = None
 ) -> bool:
     """Check whether an Outlook COM object is accessible and has the expected type.
 
     Parameters
     ----------
-    item : OlObject
+    item : OlObject or None
         Outlook COM object to inspect.
     target_type : IntEnum
         Expected Outlook object class.
@@ -142,12 +142,12 @@ def unpack_collection(
     return cast(list[T] | list[ModelT], result)
 
 
-def get_smtp_address(user: OlAddressEntry) -> LowerStr:
+def get_smtp_address(user: OlAddressEntry | None) -> LowerStr:
     """Return the SMTP address for an Outlook address entry.
 
     Parameters
     ----------
-    user : OlAddressEntry
+    user : OlAddressEntry or None
         Address entry to inspect.
 
     Returns

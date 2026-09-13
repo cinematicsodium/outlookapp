@@ -61,8 +61,8 @@ class Outlook:
             not isinstance(address, str) or not address.strip()
         ):
             raise OutlookError("Provide a nonempty mailbox address or None.")
-        self._app = _connect() if app is None else app
-        self._mapi = _open_mapi(self._app) if mapi is None else mapi
+        self._app: OlApplication | None = _connect() if app is None else app
+        self._mapi: OlNamespace | None = _open_mapi(self._app) if mapi is None else mapi
         self.account = _select_account(self.accounts)
         if address is None:
             self.address = self.account.email_address if self.account else None
