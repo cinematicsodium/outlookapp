@@ -9,7 +9,7 @@ from typing import cast
 from ..enums import ItemType
 from ..exceptions import COM_ERRORS
 from ..protocols import OlFolder, OlMailItem
-from .base import ItemModel
+from .base import BaseModel
 from .mail_item import MailItem
 
 logger = logging.getLogger(__name__)
@@ -39,7 +39,7 @@ class FolderListing:
         return (self.path, self.depth, self.subfolder_count)
 
 
-class Folder(ItemModel):
+class Folder(BaseModel):
     """Represent an Outlook folder.
 
     Parameters
@@ -48,34 +48,34 @@ class Folder(ItemModel):
         Outlook folder COM object to wrap.
     """
 
+    item_name = "Folder"
     item_type = ItemType.FOLDER
     required_properties = ("Name", "Items", "Folders")
-    inaccessible_error_message = "Provided Outlook item is not an accessible folder."
 
-    def __init__(self, item: OlFolder) -> None:
+    def __init__(self, folder: OlFolder) -> None:
         """Initialize a folder wrapper.
 
         Parameters
         ----------
-        item : OlFolder
+        folder : OlFolder
             Outlook folder COM object.
 
         Returns
         -------
         None
         """
-        super().__init__(item)
-        self._ol_folder_item = item
+        super().__init__(folder)
+        self._protocol = folder
 
     @cached_property
     def name(self) -> str:
         """Return the folder name."""
-        return self._ol_folder_item.Name
+        return self._protocol.Name
 
     @cached_property
     def folder_path(self) -> str:
         """Return the full Outlook folder path."""
-        return self._ol_folder_item.FolderPath
+        return self._protocol.FolderPath
 
     @property
     def mail_items(self) -> list[MailItem]:
@@ -95,7 +95,7 @@ class Folder(ItemModel):
         wrapper. Return zero if the count cannot be read.
         """
         try:
-            return self._ol_folder_item.Folders.Count
+            return self._protocol.Folders.Count
         except COM_ERRORS:
             logger.warning("Unable to count subfolders for '%s'", self.name)
             return 0
@@ -147,7 +147,7 @@ class Folder(ItemModel):
             Accessible messages ordered by received time when Outlook supports
             sorting.
         """
-        items = self._ol_folder_item.Items
+        items = self._protocol.Items
         if unread_only:
             try:
                 items = items.Restrict("[UnRead] = True")
@@ -178,7 +178,7 @@ class Folder(ItemModel):
     def iter_subfolders(self) -> Iterable[Folder]:
         """Iterate over accessible child folders."""
         try:
-            folders = self._ol_folder_item.Folders
+            folders = self._protocol.Folders
             count = folders.Count
         except COM_ERRORS:
             logger.warning("Unable to enumerate subfolders for '%s'", self.name)
@@ -261,7 +261,7 @@ class Folder(ItemModel):
         """
         if index < 0:
             raise ValueError("index must be >= 0")
-        items = self._ol_folder_item.Items
+        items = self._protocol.Items
         if index >= items.Count:
             return None
         return MailItem.from_outlook_item(items.Item(index + 1))
@@ -316,7 +316,7 @@ class Folder(ItemModel):
             raise ValueError("folder_name must be a string")  # ruff: ignore[TRY004]
         if not folder_name.strip():
             raise ValueError("folder_name cannot be empty")
-        folders = self._ol_folder_item.Folders
+        folders = self._protocol.Folders
         if folders is None:
             raise AttributeError("Folder does not expose a Folders collection")
         return Folder(folders.Add(folder_name))
@@ -385,7 +385,7 @@ class Folder(ItemModel):
 
     def delete(self) -> None:
         """Delete this folder."""
-        self._ol_folder_item.Delete()
+        self._protocol.Delete()
 
     def __iter__(self) -> Iterator[MailItem]:
         """Iterate over the folder's messages.

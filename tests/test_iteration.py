@@ -62,7 +62,7 @@ def test_subfolder_iteration_reads_only_requested_folder() -> None:
     first = next(iter(folder.iter_subfolders()))
 
     assert first.name == "0"
-    assert folder._ol_folder_item.Folders.item_calls == 1
+    assert folder._protocol.Folders.item_calls == 1
 
 
 def test_folder_walk_uses_native_count_without_opening_children() -> None:
@@ -87,7 +87,7 @@ def test_subfolder_iteration_skips_inaccessible_entries() -> None:
         [first, SimpleNamespace(Class=ItemType.MAIL_ITEM), object(), last]
     )
     folder = Folder(FakeFolder("Root"))
-    folder._ol_folder_item.Folders = folders
+    folder._protocol.Folders = folders
 
     assert [child.name for child in folder.iter_subfolders()] == ["first", "last"]
 

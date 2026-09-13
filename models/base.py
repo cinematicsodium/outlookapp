@@ -7,7 +7,7 @@ from ..enums import ItemType
 from ..utils import is_accessible_ol_item
 
 
-class ItemModel(ABC):
+class BaseModel(ABC):
     """Base wrapper for COM-backed Outlook items.
 
     Parameters
@@ -21,11 +21,9 @@ class ItemModel(ABC):
         If the object is inaccessible or is not the expected Outlook type.
     """
 
+    item_name: str
     item_type: ClassVar[ItemType]
     required_properties: ClassVar[tuple[str, ...]] = ()
-    inaccessible_error_message: ClassVar[str] = (
-        "Provided Outlook item is not accessible."
-    )
 
     def __init__(self, outlook_item: Any) -> None:
         """Initialize a model with an accessible Outlook item.
@@ -45,8 +43,9 @@ class ItemModel(ABC):
             If the item is inaccessible or has an unexpected type.
         """
         if not self.is_accessible(outlook_item):
-            raise ValueError(self.inaccessible_error_message)
-        self.ol_item = outlook_item
+            err_msg = f"Provided Outlook item is not accessible: {self.item_name}"
+            raise ValueError(err_msg)
+        self._protocol = outlook_item
 
     @classmethod
     def from_outlook_item(cls, outlook_item: Any) -> Self | None:
@@ -59,7 +58,7 @@ class ItemModel(ABC):
 
         Returns
         -------
-        ItemModel or None
+        BaseModel or None
             A wrapped model, or ``None`` when the item is inaccessible.
         """
         try:

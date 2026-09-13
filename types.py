@@ -2,7 +2,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, TypeAlias, TypeVar
 
 if TYPE_CHECKING:
-    from .models.base import ItemModel
+    from .models.base import BaseModel
 
 LowerStr: TypeAlias = str
 StrPath: TypeAlias = str | Path

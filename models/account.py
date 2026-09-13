@@ -5,53 +5,53 @@ from functools import cached_property
 
 from ..enums import FolderEnum, ItemType
 from ..protocols import OlAccount, OlStore
-from .base import ItemModel
+from .base import BaseModel
 from .folder import Folder
 
 
-class Account(ItemModel):
+class Account(BaseModel):
     """Represent an Outlook account.
 
     Parameters
     ----------
-    ol_acct_item : OlAccount
+    account : OlAccount
         Outlook account COM object to wrap.
     """
 
+    item_name = "Account"
     item_type = ItemType.ACCOUNT
     required_properties = ("DisplayName", "SmtpAddress", "DeliveryStore")
-    inaccessible_error_message = "Provided Outlook item is not an accessible account."
 
-    def __init__(self, ol_acct_item: OlAccount) -> None:
+    def __init__(self, account: OlAccount) -> None:
         """Initialize an account wrapper.
 
         Parameters
         ----------
-        ol_acct_item : OlAccount
+        account : OlAccount
             Outlook account COM object.
 
         Returns
         -------
         None
         """
-        super().__init__(ol_acct_item)
-        self.ol_item: OlAccount = ol_acct_item
+        super().__init__(account)
+        self._protocol = account
         self._default_folders: dict[FolderEnum, Folder] = {}
 
     @cached_property
     def name(self) -> str:
         """Return the display name of the account."""
-        return self.ol_item.DisplayName
+        return self._protocol.DisplayName
 
     @cached_property
     def email_address(self) -> str:
         """Return the email address of the account."""
-        return self.ol_item.SmtpAddress
+        return self._protocol.SmtpAddress
 
     @cached_property
     def store(self) -> OlStore:
         """Return the default store associated with this account."""
-        return self.ol_item.DeliveryStore
+        return self._protocol.DeliveryStore
 
     @property
     def root_folder(self) -> Folder | None:

@@ -219,7 +219,7 @@ class Outlook:
         try:
             item: OlMailItem = app.CreateItem(0)
             if self.account is not None:
-                item.SendUsingAccount = self.account.ol_item
+                item.SendUsingAccount = self.account._protocol
             item.SentOnBehalfOfName = address
         except COM_ERRORS as exc:
             raise OutlookError(f"Unable to create an email from {address!r}.") from exc

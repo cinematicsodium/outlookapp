@@ -13,7 +13,7 @@ from ..types import StrPath
 from ..utils import get_smtp_address, unpack_collection
 from ..validation import validate_datetime, validate_email, validate_paths
 from .address_entry import AddressEntry
-from .base import ItemModel
+from .base import BaseModel
 
 log = logging.getLogger(__name__)
 if TYPE_CHECKING:
@@ -27,12 +27,12 @@ class Recipient(TypedDict):
     address: str
 
 
-class MailItem(ItemModel):
+class MailItem(BaseModel):
     """Represent an Outlook email message.
 
     Parameters
     ----------
-    item : OlMailItem
+    mail_item : OlMailItem
         Outlook mail item COM object to wrap.
     """
 
@@ -49,6 +49,7 @@ class MailItem(ItemModel):
             "unread",
         }
     )
+    item_name = "MailItem"
     item_type = ItemType.MAIL_ITEM
     required_properties = (
         "SenderEmailAddress",
@@ -65,67 +66,66 @@ class MailItem(ItemModel):
         "ReceivedTime",
         "ConversationID",
     )
-    inaccessible_error_message = "Provided Outlook item is not an accessible mail item."
 
-    def __init__(self, item: OlMailItem):
+    def __init__(self, mail_item: OlMailItem):
         """Initialize a mail-item wrapper.
 
         Parameters
         ----------
-        item : OlMailItem
+        mail_item : OlMailItem
             Outlook mail-item COM object.
 
         Returns
         -------
         None
         """
-        super().__init__(item)
-        self._item = item
+        super().__init__(mail_item)
+        self._protocol = mail_item
 
     # Identity
     @property
     def id(self) -> str:
         """The unique hexadecimal identifier for the Outlook item."""
-        return self._item.EntryID or ""
+        return self._protocol.EntryID or ""
 
     @property
     def thread_id(self) -> str:
         """A unique string identifying all messages within the same thread."""
-        return self._item.ConversationID or ""
+        return self._protocol.ConversationID or ""
 
     @property
     def thread_index(self) -> str:
         """A hexadecimal string representing the message's hierarchical position in a thread."""
-        return self._item.ConversationIndex or ""
+        return self._protocol.ConversationIndex or ""
 
     @property
     def folder(self) -> Folder | None:
         """Returns the Folder containing the mail item."""
         from .folder import Folder
 
-        return Folder.from_outlook_item(self._item.Parent)
+        return Folder.from_outlook_item(self._protocol.Parent)
 
     # Addresses
     @property
     def sender_entry(self) -> AddressEntry | None:
         """Returns an AddressEntry object representing the email sender."""
-        return AddressEntry.from_outlook_item(self._item.Sender)
+        return AddressEntry.from_outlook_item(self._protocol.Sender)
 
     @property
     def sender_name(self) -> str:
         """Returns the display name of the email sender."""
-        return str(self._item.SenderName or "")
+        return str(self._protocol.SenderName or "")
 
     @property
     def sender_address(self) -> str:
         """Retrieves the sender's email address in lowercase format."""
-        address = get_smtp_address(self._item.Sender)
-        return str(address or self._item.SenderEmailAddress or "").lower()
+        address = get_smtp_address(self._protocol.Sender)
+        return str(address or self._protocol.SenderEmailAddress or "").lower()
 
     @property
     def sent_for(self) -> str:
         """Gets or sets the name or address of the person the email is sent on behalf of."""
-        return self._item.SentOnBehalfOfName or ""
+        return self._protocol.SentOnBehalfOfName or ""
 
     @sent_for.setter
     def sent_for(self, value: str) -> None:
@@ -140,12 +140,12 @@ class MailItem(ItemModel):
         -------
         None
         """
-        self._item.SentOnBehalfOfName = validate_email(value) if value else ""
+        self._protocol.SentOnBehalfOfName = validate_email(value) if value else ""
 
     @property
     def to(self) -> str:
         """Gets or sets the primary recipients of the email message."""
-        return self._item.To or ""
+        return self._protocol.To or ""
 
     @to.setter
     def to(self, value: str | Iterable[str]) -> None:
@@ -160,12 +160,12 @@ class MailItem(ItemModel):
         -------
         None
         """
-        self._item.To = validate_email(value) if value else ""
+        self._protocol.To = validate_email(value) if value else ""
 
     @property
     def cc(self) -> str:
         """Gets or sets the carbon copy recipients of the email message."""
-        return self._item.CC or ""
+        return self._protocol.CC or ""
 
     @cc.setter
     def cc(self, value: str | Iterable[str]) -> None:
@@ -180,12 +180,12 @@ class MailItem(ItemModel):
         -------
         None
         """
-        self._item.CC = validate_email(value) if value else ""
+        self._protocol.CC = validate_email(value) if value else ""
 
     @property
     def bcc(self) -> str:
         """Gets or sets the blind carbon copy recipients of the email message."""
-        return self._item.BCC or ""
+        return self._protocol.BCC or ""
 
     @bcc.setter
     def bcc(self, value: str | Iterable[str]) -> None:
@@ -200,7 +200,7 @@ class MailItem(ItemModel):
         -------
         None
         """
-        self._item.BCC = validate_email(value) if value else ""
+        self._protocol.BCC = validate_email(value) if value else ""
 
     @property
     def delivery_recipients(self):
@@ -212,7 +212,7 @@ class MailItem(ItemModel):
         """Return names and SMTP addresses for all resolved recipients."""
         entries = (
             AddressEntry.from_outlook_item(recipient.AddressEntry)
-            for recipient in unpack_collection(self._item.Recipients)
+            for recipient in unpack_collection(self._protocol.Recipients)
             if recipient is not None
         )
         return [
@@ -225,7 +225,7 @@ class MailItem(ItemModel):
     @property
     def subject(self) -> str:
         """Gets or sets the subject line for the email message."""
-        return self._item.Subject or ""
+        return self._protocol.Subject or ""
 
     @subject.setter
     def subject(self, value: str) -> None:
@@ -240,12 +240,12 @@ class MailItem(ItemModel):
         -------
         None
         """
-        self._item.Subject = value or ""
+        self._protocol.Subject = value or ""
 
     @property
     def body(self) -> str:
         """Gets or sets the plain text content of the email body."""
-        return self._item.Body
+        return self._protocol.Body
 
     @body.setter
     def body(self, value: str) -> None:
@@ -260,12 +260,12 @@ class MailItem(ItemModel):
         -------
         None
         """
-        self._item.Body = value or ""
+        self._protocol.Body = value or ""
 
     @property
     def html(self) -> str:
         """Gets or sets HTML formatted content of the email body."""
-        return self._item.HTMLBody
+        return self._protocol.HTMLBody
 
     @html.setter
     def html(self, value: str) -> None:
@@ -283,14 +283,14 @@ class MailItem(ItemModel):
         value = value or ""
         if "html" not in value.lower():
             raise ValueError("HTML body must contain an <html> root element.")
-        self._item.HTMLBody = value
+        self._protocol.HTMLBody = value
 
     @property
     def attachments(self) -> list[str]:
         """Gets a list of filenames for all current attachments."""
         return [
             str(attachment.FileName)
-            for attachment in unpack_collection(self._item.Attachments)
+            for attachment in unpack_collection(self._protocol.Attachments)
             if attachment is not None
         ]
 
@@ -308,13 +308,13 @@ class MailItem(ItemModel):
             If any supplied path is invalid or does not exist.
         """
         for path in validate_paths(paths):
-            self._item.Attachments.Add(str(path))
+            self._protocol.Attachments.Add(str(path))
 
     # Timing and status
     @property
     def deliver_at(self) -> datetime | None:
         """Gets or sets the date and time for deferred delivery."""
-        return self._item.DeferredDeliveryTime
+        return self._protocol.DeferredDeliveryTime
 
     @deliver_at.setter
     def deliver_at(self, value: datetime) -> None:
@@ -331,22 +331,22 @@ class MailItem(ItemModel):
         """
         dt = validate_datetime(value)
         if dt:
-            self._item.DeferredDeliveryTime = dt
+            self._protocol.DeferredDeliveryTime = dt
 
     @property
     def sent_at(self) -> datetime | None:
         """Returns when the email message was sent."""
-        return self._item.SentOn
+        return self._protocol.SentOn
 
     @property
     def received_at(self) -> datetime | None:
         """Returns when the email message was received."""
-        return self._item.ReceivedTime
+        return self._protocol.ReceivedTime
 
     @property
     def size(self) -> int:
         """Retrieves the total size of the email item in bytes."""
-        return self._item.Size
+        return self._protocol.Size
 
     @property
     def size_mb(self) -> float:
@@ -356,7 +356,7 @@ class MailItem(ItemModel):
     @property
     def unread(self) -> bool:
         """Gets or sets whether the email message is unread."""
-        return self._item.UnRead
+        return self._protocol.UnRead
 
     @unread.setter
     def unread(self, value: bool) -> None:
@@ -371,12 +371,12 @@ class MailItem(ItemModel):
         -------
         None
         """
-        self._item.UnRead = value
+        self._protocol.UnRead = value
 
     # Actions
     def show(self) -> None:
         """Open the message in an Outlook inspector window."""
-        self._item.Display()
+        self._protocol.Display()
 
     def send(self) -> None:
         """Resolve recipients and send the message.
@@ -388,13 +388,13 @@ class MailItem(ItemModel):
         """
         if not any(self.delivery_recipients):
             raise ValueError(f"Cannot send {self.subject!r}: recipient is missing.")
-        if self._item.Recipients.ResolveAll() is False:
+        if self._protocol.Recipients.ResolveAll() is False:
             log.warning("Sending %r with unresolved recipients", self.subject)
-        self._item.Send()
+        self._protocol.Send()
 
     def save(self) -> None:
         """Save the message in Outlook."""
-        self._item.Save()
+        self._protocol.Save()
 
     def export(self, path: StrPath) -> bool:
         """Export the message to a file.
@@ -412,7 +412,7 @@ class MailItem(ItemModel):
         try:
             target = Path(path).expanduser().resolve()
             target.parent.mkdir(parents=True, exist_ok=True)
-            self._item.SaveAs(str(target))
+            self._protocol.SaveAs(str(target))
             return True
         except (OSError, *COM_ERRORS):
             log.exception("Failed to export %r to %r", self.subject, path)
@@ -420,7 +420,7 @@ class MailItem(ItemModel):
 
     def delete(self) -> None:
         """Delete the message from Outlook."""
-        self._item.Delete()
+        self._protocol.Delete()
 
     def move(self, folder: Folder) -> MailItem | None:
         """Move the message to another folder.
@@ -435,7 +435,7 @@ class MailItem(ItemModel):
         MailItem or None
             The moved message, if Outlook returns an accessible object.
         """
-        item = self._item.Move(folder._ol_folder_item)
+        item = self._protocol.Move(folder._protocol)
         return MailItem.from_outlook_item(item)
 
     def update(self, **kwargs: Any) -> None:
@@ -507,7 +507,7 @@ class MailItem(ItemModel):
         folder = self.folder
         from tabulate import tabulate
 
-        attachment_count = self._item.Attachments.Count
+        attachment_count = self._protocol.Attachments.Count
         size = self.size
         rows = {
             "Subject": self.subject,
@@ -592,7 +592,7 @@ class MailItem(ItemModel):
         if value is None:
             return ""
         try:
-            return "" if abs(value.year - datetime.now().year) >= 100 else str(value)  # ruff: ignore[DTZ005]
+            return "" if abs(value.year - datetime.now().year) >= 100 else str(value)
         except (AttributeError, OverflowError, ValueError):
             return ""
 
