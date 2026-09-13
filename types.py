@@ -1,8 +1,5 @@
 from pathlib import Path
-from typing import TYPE_CHECKING, TypeAlias, TypeVar
-
-if TYPE_CHECKING:
-    from .models.base import BaseModel
+from typing import TypeAlias, TypeVar
 
 LowerStr: TypeAlias = str
 StrPath: TypeAlias = str | Path
