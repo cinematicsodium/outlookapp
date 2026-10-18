@@ -1,8 +1,14 @@
-# Track Python source; ignore everything else by default.
+# Ignore everything
 *
+
+# Allow Git to traverse directories
 !*/
-!*.md
+
+# Allow Python and Markdown files
 !*.py
+!*.md
+
+# Keep .gitignore
 !.gitignore
 
 # Add exceptions below as needed, for example:
