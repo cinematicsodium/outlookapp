@@ -18,9 +18,9 @@ def echo_table(rows: list[tuple[object, ...]], headers: list[str]) -> None:
         Column headings.
     """
     if not rows:
-        console.print("No results.")
+        console.log("No results.")
         return
-    console.print(tabulate(rows, headers=headers, tablefmt="github"), markup=False)
+    console.log(tabulate(rows, headers=headers, tablefmt="github"), markup=False)
 
 
 def format_datetime(value: datetime | None) -> str:

@@ -75,9 +75,9 @@ def create_draft(
         message.add_attachments(attachment)
     if send:
         message.send()
-        console.print("[green]Message sent.[/green]")
+        console.log("[green]Message sent.[/green]")
         return
     message.save()
     if display:
         message.show()
-    console.print("[green]Draft created.[/green]")
+    console.log("[green]Draft created.[/green]")
